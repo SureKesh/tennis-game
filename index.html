@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tennis</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  </style>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080808;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      overflow: hidden;
+    }
+
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .title-label {
+      color: #444;
+      font-size: 11px;
+      letter-spacing: 9px;
+      text-transform: uppercase;
+    }
+
+    /* ── ARENA ── */
+    #arena {
+      position: relative;
+      width: 720px;
+      height: 450px;
+      background: #0d0d0d;
+      border: 1px solid #1c1c1c;
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: 0 0 80px rgba(0,0,0,.9), inset 0 0 60px rgba(0,0,0,.6);
+    }
+
+    /* scanline overlay */
+    #arena::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,.06) 2px, rgba(0,0,0,.06) 4px
+      );
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    /* center dashes */
+    #center-line {
+      position: absolute;
+      left: 50%;
+      top: 0; bottom: 0;
+      width: 1px;
+      background: repeating-linear-gradient(
+        to bottom, #1e1e1e 0, #1e1e1e 10px, transparent 10px, transparent 22px
+      );
+    }
+
+    /* ── SCORE / LIVES ── */
+    .score {
+      position: absolute;
+      top: 16px;
+      font-size: 26px;
+      color: #ddd;
+      letter-spacing: 1px;
+    }
+    #score-left  { left:  calc(50% - 60px); }
+    #score-right { right: calc(50% - 60px); }
+
+    .lives-row {
+      position: absolute;
+      top: 52px;
+      display: flex;
+      gap: 6px;
+    }
+    #lives-left  { left:  calc(50% - 76px); }
+    #lives-right { right: calc(50% - 76px); flex-direction: row-reverse; }
+
+    .pip {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #222;
+      transition: background .25s;
+    }
+    .pip.on { background: #ccc; box-shadow: 0 0 5px #fff7; }
+
+    /* ── PADDLES ── */
+    .paddle {
+      position: absolute;
+      width: 8px;
+      height: 72px;
+      border-radius: 4px;
+    }
+    #paddle-left {
+      left: 22px;
+      background: linear-gradient(180deg, #ff7070, #b52020);
+      box-shadow: 0 0 14px rgba(255,70,70,.65);
+    }
+    #paddle-right {
+      right: 22px;
+      background: linear-gradient(180deg, #55e8f8, #1a8fa8);
+      box-shadow: 0 0 14px rgba(55,220,245,.65);
+    }
+
+    /* ── BALL ── */
+    #ball {
+      position: absolute;
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #f0f080;
+      box-shadow: 0 0 8px rgba(240,240,80,.95), 0 0 18px rgba(240,240,80,.4);
+    }
+
+    .trail-dot {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(240,240,80,.2);
+      pointer-events: none;
+    }
+
+    /* ── OVERLAY ── */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background: rgba(0,0,0,.75);
+      z-index: 40;
+    }
+    #overlay.hidden { display: none; }
+
+    .ov-title {
+      color: #e0e0e0;
+      font-size: 32px;
+      letter-spacing: 10px;
+      text-transform: uppercase;
+    }
+
+    .ov-sub {
+      color: #555;
+      font-size: 11px;
+      letter-spacing: 4px;
+    }
+
+    .ov-winner {
+      font-size: 13px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+    .ov-winner.player { color: #ff7070; }
+    .ov-winner.cpu    { color: #55e8f8; }
+
+    .btn {
+      background: transparent;
+      border: 1px solid #bbb;
+      color: #bbb;
+      font-family: inherit;
+      font-size: 12px;
+      letter-spacing: 7px;
+      padding: 10px 34px;
+      cursor: pointer;
+      text-transform: uppercase;
+      border-radius: 2px;
+      transition: background .18s, color .18s, box-shadow .18s;
+    }
+    .btn:hover {
+      background: #ccc;
+      color: #080808;
+      box-shadow: 0 0 18px rgba(200,200,200,.3);
+    }
+
+    /* ── BOTTOM LABELS ── */
+    #hint {
+      position: absolute;
+      bottom: 13px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #2a2a2a;
+      font-size: 10px;
+      letter-spacing: 3px;
+      white-space: nowrap;
+    }
+    .side-label {
+      position: absolute;
+      bottom: 13px;
+      font-size: 10px;
+      letter-spacing: 3px;
+      opacity: .35;
+    }
+    #lbl-left  { left: 22px; color: #ff7070; }
+    #lbl-right { right: 22px; color: #55e8f8; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="title-label">Tennis</div>
+  <div id="arena">
+    <div id="center-line"></div>
+
+    <div id="score-left"  class="score">3</div>
+    <div id="score-right" class="score">3</div>
+
+    <div id="lives-left"  class="lives-row"></div>
+    <div id="lives-right" class="lives-row"></div>
+
+    <!-- trail dots (6) -->
+    <div class="trail-dot" id="t0"></div>
+    <div class="trail-dot" id="t1"></div>
+    <div class="trail-dot" id="t2"></div>
+    <div class="trail-dot" id="t3"></div>
+    <div class="trail-dot" id="t4"></div>
+    <div class="trail-dot" id="t5"></div>
+
+    <div id="ball"></div>
+    <div id="paddle-left"  class="paddle"></div>
+    <div id="paddle-right" class="paddle"></div>
+
+    <!-- overlay -->
+    <div id="overlay">
+      <div class="ov-title" id="ov-title">Tennis</div>
+      <div class="ov-sub"   id="ov-sub">Arcade · 1 vs CPU</div>
+      <div class="ov-winner hidden" id="ov-winner"></div>
+      <button class="btn" id="ov-btn">Start</button>
+    </div>
+
+    <div id="hint">W / S — move paddle</div>
+    <div class="side-label" id="lbl-left">Player</div>
+    <div class="side-label" id="lbl-right">CPU</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const W = 720, H = 450;
+  const PW = 8, PH = 72;
+  const BS = 9;
+  const MAX_LIVES = 3;
+  const PADDLE_SPEED = 5.2;
+  const CPU_BASE = 3.8;
+  const INIT_SPEED = 5.2;
+  const TRAIL_N = 6;
+  const TRAIL_SIZES = [8, 6.5, 5.5, 4.5, 3.5, 2.5];
+
+  // DOM refs
+  const $ball   = document.getElementById('ball');
+  const $pL     = document.getElementById('paddle-left');
+  const $pR     = document.getElementById('paddle-right');
+  const $sL     = document.getElementById('score-left');
+  const $sR     = document.getElementById('score-right');
+  const $livesL = document.getElementById('lives-left');
+  const $livesR = document.getElementById('lives-right');
+  const $ov     = document.getElementById('overlay');
+  const $ovT    = document.getElementById('ov-title');
+  const $ovS    = document.getElementById('ov-sub');
+  const $ovW    = document.getElementById('ov-winner');
+  const $ovBtn  = document.getElementById('ov-btn');
+  const $trails = Array.from({length: TRAIL_N}, (_, i) => document.getElementById('t' + i));
+
+  // state
+  let lives = { player: MAX_LIVES, cpu: MAX_LIVES };
+  let ball = { x: 0, y: 0, vx: 0, vy: 0 };
+  let paddles = { left: 0, right: 0 };
+  let trail = [];
+  let keys = {};
+  let animId = null;
+  let scoring = false;
+  let phase = 'idle'; // idle | playing | over
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  function newBall() {
+    const angle = (Math.random() * 44 - 22) * Math.PI / 180;
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    return {
+      x: W / 2 - BS / 2,
+      y: H / 2 - BS / 2,
+      vx: dir * INIT_SPEED * Math.cos(angle),
+      vy: INIT_SPEED * Math.sin(angle),
+    };
+  }
+
+  function buildPips(el, count) {
+    el.innerHTML = '';
+    for (let i = 0; i < MAX_LIVES; i++) {
+      const d = document.createElement('div');
+      d.className = 'pip' + (i < count ? ' on' : '');
+      el.appendChild(d);
+    }
+  }
+
+  function updateUI() {
+    $sL.textContent = lives.player;
+    $sR.textContent = lives.cpu;
+    buildPips($livesL, lives.player);
+    buildPips($livesR, lives.cpu);
+  }
+
+  function applyPositions() {
+    $pL.style.top   = paddles.left  + 'px';
+    $pR.style.top   = paddles.right + 'px';
+    $ball.style.left = ball.x + 'px';
+    $ball.style.top  = ball.y + 'px';
+
+    for (let i = 0; i < TRAIL_N; i++) {
+      const t = trail[i];
+      const el = $trails[i];
+      if (!t) { el.style.opacity = '0'; continue; }
+      const sz = TRAIL_SIZES[i];
+      el.style.width   = sz + 'px';
+      el.style.height  = sz + 'px';
+      el.style.left    = (t.x + BS/2 - sz/2) + 'px';
+      el.style.top     = (t.y + BS/2 - sz/2) + 'px';
+      el.style.opacity = ((TRAIL_N - i) / TRAIL_N * 0.55).toFixed(2);
+    }
+  }
+
+  function losePoint(side) {
+    if (scoring) return;
+    scoring = true;
+
+    lives[side] = Math.max(0, lives[side] - 1);
+    updateUI();
+
+    if (lives.player <= 0 || lives.cpu <= 0) {
+      cancelAnimationFrame(animId);
+      const winner = lives.cpu <= 0 ? 'player' : 'cpu';
+      showOver(winner);
+      return;
+    }
+
+    setTimeout(() => {
+      ball = newBall();
+      trail = [];
+      scoring = false;
+    }, 650);
+  }
+
+  function loop() {
+    // player movement
+    if (keys['ArrowUp'] || keys['w'] || keys['W'])
+      paddles.left = clamp(paddles.left - PADDLE_SPEED, 0, H - PH);
+    if (keys['ArrowDown'] || keys['s'] || keys['S'])
+      paddles.left = clamp(paddles.left + PADDLE_SPEED, 0, H - PH);
+
+    // CPU — tracks ball with speed cap
+    const cpuC  = paddles.right + PH / 2;
+    const ballC = ball.y + BS / 2;
+    const diff  = ballC - cpuC;
+    const move  = clamp(diff, -CPU_BASE, CPU_BASE);
+    paddles.right = clamp(paddles.right + move, 0, H - PH);
+
+    // trail
+    trail.unshift({ x: ball.x, y: ball.y });
+    if (trail.length > TRAIL_N) trail.length = TRAIL_N;
+
+    // move ball
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // wall bounce
+    if (ball.y <= 0)          { ball.y = 0;        ball.vy =  Math.abs(ball.vy); }
+    if (ball.y + BS >= H)     { ball.y = H - BS;   ball.vy = -Math.abs(ball.vy); }
+
+    // left paddle (player) hit
+    const lEdge = 22 + PW;
+    if (ball.vx < 0 && ball.x <= lEdge && ball.x > lEdge - 12) {
+      if (ball.y + BS >= paddles.left && ball.y <= paddles.left + PH) {
+        ball.x = lEdge;
+        const rel   = (ball.y + BS/2 - (paddles.left + PH/2)) / (PH / 2);
+        const angle = rel * 58 * Math.PI / 180;
+        const spd   = Math.min(Math.hypot(ball.vx, ball.vy) * 1.045, 15);
+        ball.vx =  spd * Math.cos(angle);
+        ball.vy =  spd * Math.sin(angle);
+      }
+    }
+
+    // right paddle (cpu) hit
+    const rEdge = W - 22 - PW;
+    if (ball.vx > 0 && ball.x + BS >= rEdge && ball.x + BS < rEdge + 12) {
+      if (ball.y + BS >= paddles.right && ball.y <= paddles.right + PH) {
+        ball.x = rEdge - BS;
+        const rel   = (ball.y + BS/2 - (paddles.right + PH/2)) / (PH / 2);
+        const angle = rel * 58 * Math.PI / 180;
+        const spd   = Math.min(Math.hypot(ball.vx, ball.vy) * 1.045, 15);
+        ball.vx = -spd * Math.cos(angle);
+        ball.vy =  spd * Math.sin(angle);
+      }
+    }
+
+    // out of bounds
+    if (!scoring) {
+      if (ball.x < -40)      losePoint('player');
+      else if (ball.x > W + 30) losePoint('cpu');
+    }
+
+    applyPositions();
+    animId = requestAnimationFrame(loop);
+  }
+
+  function showOver(winner) {
+    phase = 'over';
+    $ovT.textContent = '';
+    $ovS.textContent = '';
+    $ovW.className   = 'ov-winner ' + winner;
+    $ovW.textContent = winner === 'player' ? 'You Win' : 'CPU Wins';
+    $ovW.classList.remove('hidden');
+    $ovBtn.textContent = 'Play Again';
+    $ov.classList.remove('hidden');
+  }
+
+  function startGame() {
+    cancelAnimationFrame(animId);
+    lives   = { player: MAX_LIVES, cpu: MAX_LIVES };
+    paddles = { left: H/2 - PH/2, right: H/2 - PH/2 };
+    ball    = newBall();
+    trail   = [];
+    scoring = false;
+    phase   = 'playing';
+    updateUI();
+
+    // hide overlay
+    $ov.classList.add('hidden');
+    $ovW.classList.add('hidden');
+
+    applyPositions();
+    animId = requestAnimationFrame(loop);
+  }
+
+  $ovBtn.addEventListener('click', startGame);
+
+  window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    // prevent page scroll on arrow keys
+    if (['ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
+  });
+  window.addEventListener('keyup',   e => { keys[e.key] = false; });
+
+  // initial positions
+  paddles = { left: H/2 - PH/2, right: H/2 - PH/2 };
+  ball    = { x: W/2 - BS/2, y: H/2 - BS/2, vx: 0, vy: 0 };
+  updateUI();
+  applyPositions();
+})();
+</script>
+</body>
+</html>
